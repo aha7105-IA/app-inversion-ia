@@ -7,7 +7,17 @@ import google.generativeai as genai
 import time
 
 # --- 1. CONFIGURACIÓN DEL DASHBOARD ---
-st.set_page_config(page_title="Terminal IA | Autonomous Mode", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Terminal IA | Chief Executive", layout="wide", initial_sidebar_state="expanded")
+
+# --- INICIALIZAR BANCO VIRTUAL Y MEMORIA ---
+if 'cash' not in st.session_state:
+    st.session_state.cash = 100000.0 # Tus 100.000€ iniciales
+if 'cartera' not in st.session_state:
+    st.session_state.cartera = {} # Aquí se guardan tus activos comprados
+if 'ultimo_informe' not in st.session_state:
+    st.session_state.ultimo_informe = "El sistema está a la espera de sus órdenes."
+if 'ultima_actualizacion' not in st.session_state:
+    st.session_state.ultima_actualizacion = datetime.now() - timedelta(minutes=60)
 
 # --- 2. CEREBRO IA ---
 try:
@@ -33,7 +43,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. BARRA LATERAL: CONTROL DE AGENTES ---
+# --- 4. BARRA LATERAL ---
 st.sidebar.title("⚡ SISTEMA AUTÓNOMO")
 modo_auto = st.sidebar.toggle("Activar Modo Vigilancia (Auto-Update)", value=False)
 intervalo = st.sidebar.select_slider("Frecuencia del reporte IA (min):", options=[1, 5, 15, 30, 60], value=15)
@@ -48,11 +58,11 @@ seleccion = st.sidebar.selectbox("Fijar objetivo:", list(diccionario_activos.key
 ticker_actual = diccionario_activos[seleccion]
 
 st.sidebar.divider()
-st.sidebar.caption("Sistemas Operativos: 🟢 9/9 Agentes Online")
-st.sidebar.caption("Divisa Base: 🇪🇺 EUR (€)")
+# Mostrar resumen del banco en la barra lateral
+st.sidebar.success(f"💰 Liquidez: {st.session_state.cash:,.2f} €")
 
-# --- 5. EXTRACCIÓN Y CONVERSIÓN DE DATOS (A EUROS) ---
-@st.cache_data(ttl=60) # Refresca datos de bolsa cada 60 segundos para ser muy rápido
+# --- 5. EXTRACCIÓN DE DATOS ---
+@st.cache_data(ttl=60)
 def obtener_datos_convertidos(ticker):
     df_activo = yf.download(ticker, period="3mo", interval="1d")
     df_eurusd = yf.download("EURUSD=X", period="5d")
@@ -70,7 +80,6 @@ def obtener_datos_convertidos(ticker):
         'Low': low_activo / tipo_cambio, 'Close': close_activo / tipo_cambio,
         'Volume': volume_activo
     })
-    
     df_eur['SMA_20'] = df_eur['Close'].rolling(window=20).mean()
     return df_eur.dropna()
 
@@ -79,51 +88,30 @@ df = obtener_datos_convertidos(ticker_actual)
 precio_actual = float(df['Close'].iloc[-1])
 precio_anterior = float(df['Close'].iloc[-2])
 variacion = ((precio_actual - precio_anterior) / precio_anterior) * 100
-maximo_3m = float(df['High'].max())
-minimo_3m = float(df['Low'].min())
-volumen_hoy = int(df['Volume'].iloc[-1])
 
 # --- 6. CABECERA PRINCIPAL ---
 status_text = '<span class="status-live">● LIVE</span>' if modo_auto else '<span>○ STANDBY</span>'
 st.markdown(f"<h1>🏛️ Terminal Analítica {status_text}</h1>", unsafe_allow_html=True)
-st.markdown(f"**Vigilando: {seleccion}** | Última lectura de mercado: {datetime.now().strftime('%H:%M:%S')}")
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Precio Actual (€)", f"{precio_actual:.2f} €", f"{variacion:.2f}%")
-col2.metric("Máximo (3m)", f"{maximo_3m:.2f} €")
-col3.metric("Mínimo (3m)", f"{minimo_3m:.2f} €")
-col4.metric("Volumen Diario", f"{volumen_hoy:,}")
+col2.metric("Máximo (3m)", f"{float(df['High'].max()):.2f} €")
+col3.metric("Mínimo (3m)", f"{float(df['Low'].min()):.2f} €")
+col4.metric("Volumen Diario", f"{int(df['Volume'].iloc[-1]):,}")
 
 st.divider()
 
-# --- 7. INICIALIZAR MEMORIA DE LA IA ---
-if 'ultimo_informe' not in st.session_state:
-    st.session_state.ultimo_informe = "El sistema está a la espera de sus órdenes para generar el primer reporte."
-if 'ultima_actualizacion' not in st.session_state:
-    # Truco para que, si pulsas auto, no tengas que esperar la primera vez
-    st.session_state.ultima_actualizacion = datetime.now() - timedelta(minutes=intervalo + 1) 
-
+# --- FUNCION DE IA ---
 def generar_inteligencia():
     prompt = f"""
-    Actúa como el analista jefe de un fondo de cobertura cuantitativo.
-    Activo bajo análisis: {seleccion} ({ticker_actual}). 
-    Precio: {precio_actual:.2f} € | Variación diaria: {variacion:.2f}%.
-    
-    Genera un informe ULTRA-ESQUEMATIZADO para el CEO. 
-    REGLAS: Cero párrafos largos. Solo viñetas. Expresa dinero en EUROS (€). Mantén este formato exacto:
-
-    ### 🌐 1. CONTEXTO MACRO (El Sabueso)
-    * **Driver Principal:** (1 frase directa sobre qué mueve el sector hoy).
-    * **Dato Clave:** (1 métrica relevante).
-
-    ### 📊 2. ACCIÓN DEL PRECIO (El Analista)
-    * **Diagnóstico Técnico:** (¿Qué indica el {variacion:.2f}% frente a la SMA 20?).
-    * **Flujo de Dinero:** (Entrada o salida institucional).
-
-    ### ⚠️ 3. EVALUACIÓN DE RIESGO (El Abogado del Diablo)
-    * **Peligro Inminente:** (Mayor riesgo a corto plazo).
-    * **Peor Escenario:** (Qué pasaría si sale mal).
-    
+    Actúa como analista jefe. Activo: {seleccion} ({ticker_actual}). Precio: {precio_actual:.2f} €.
+    Genera un informe ULTRA-ESQUEMATIZADO en viñetas. Solo usa EUROS. Formato:
+    ### 🌐 1. CONTEXTO MACRO
+    * **Driver:**
+    ### 📊 2. ACCIÓN DEL PRECIO
+    * **Técnico:**
+    ### ⚠️ 3. EVALUACIÓN DE RIESGO
+    * **Riesgo:**
     ### 🎯 CONCLUSIÓN
     * **Veredicto:** (COMPRA FUERTE / MANTENER / VENTA / ESPERAR)
     """
@@ -132,10 +120,11 @@ def generar_inteligencia():
         st.session_state.ultimo_informe = res.text
         st.session_state.ultima_actualizacion = datetime.now()
     except Exception as e:
-        st.error(f"Fallo de conexión IA: {e}")
+        st.error("Fallo de IA")
 
-# --- 8. PESTAÑAS DE NAVEGACIÓN ---
-tab1, tab2, tab3 = st.tabs(["📊 Gráfico Pro", "🧠 Reporte IA Automático", "📰 Datos Históricos"])
+# --- 7. PESTAÑAS ---
+# HEMOS AÑADIDO UNA NUEVA PESTAÑA AQUÍ
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Gráfico Pro", "🧠 Reporte IA", "📰 Datos Históricos", "💼 Simulador de Cartera"])
 
 with tab1:
     fig = go.Figure()
@@ -143,43 +132,75 @@ with tab1:
                     name='Precio (€)', increasing_line_color='#00ff88', decreasing_line_color='#ff3333'))
     fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='#00d4ff', width=1.5), name='SMA 20 Días'))
     fig.update_layout(template='plotly_dark', paper_bgcolor='#050505', plot_bgcolor='#050505',
-        margin=dict(l=10, r=10, t=10, b=10), height=550, xaxis_rangeslider_visible=False,
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
+        margin=dict(l=10, r=10, t=10, b=10), height=500, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
     st.subheader("Análisis Táctico Esquematizado")
-    
-    # Lógica de temporizador visual
-    tiempo_pasado = (datetime.now() - st.session_state.ultima_actualizacion).total_seconds()
-    
-    col_btn, col_info = st.columns([1, 3])
-    with col_btn:
-        if st.button("🚀 Forzar Análisis Ahora", use_container_width=True):
-            with st.spinner("Analizando variables..."):
-                generar_inteligencia()
-    
-    with col_info:
-        if modo_auto:
-            segundos_restantes = int((intervalo * 60) - tiempo_pasado)
-            if segundos_restantes > 0:
-                st.info(f"Modo Automático ON. Próximo reporte de los agentes en **{segundos_restantes} segundos**.")
-            else:
-                st.warning("⏱️ Generando reporte autónomo...")
-                generar_inteligencia()
-                st.rerun() # Obliga a limpiar el mensaje de "Generando..."
-    
+    if st.button("🚀 Forzar Análisis Ahora", use_container_width=True):
+        with st.spinner("Analizando variables..."):
+            generar_inteligencia()
     st.markdown(st.session_state.ultimo_informe)
-    st.caption(f"Último reporte generado a las: {st.session_state.ultima_actualizacion.strftime('%H:%M:%S')}")
 
 with tab3:
     st.subheader("Datos en Crudo (EUR €)")
-    df_mostrar = df.tail(10).sort_index(ascending=False).copy()
-    for col in ['Open', 'High', 'Low', 'Close', 'SMA_20']:
-        df_mostrar[col] = df_mostrar[col].apply(lambda x: f"{x:.2f} €")
-    st.dataframe(df_mostrar, use_container_width=True)
+    st.dataframe(df.tail(10).sort_index(ascending=False), use_container_width=True)
 
-# --- 9. BUCLE DE REFRESCO AUTÓNOMO ---
+with tab4:
+    st.subheader(f"Mesa de Operaciones: {seleccion}")
+    
+    # Obtener la posición actual del usuario en este activo
+    posicion = st.session_state.cartera.get(ticker_actual, {'cantidad': 0.0, 'invertido': 0.0})
+    valor_actual_posicion = posicion['cantidad'] * precio_actual
+    beneficio_posicion = valor_actual_posicion - posicion['invertido']
+    
+    # Mostrar métricas del portfolio
+    cp1, cp2, cp3 = st.columns(3)
+    cp1.metric("Liquidez Disponible", f"{st.session_state.cash:,.2f} €")
+    cp2.metric(f"Tus uds. de {ticker_actual}", f"{posicion['cantidad']:.4f}", f"{beneficio_posicion:,.2f} € (Beneficio/Pérdida)")
+    cp3.metric("Valor Actual de tu Posición", f"{valor_actual_posicion:,.2f} €")
+    
+    st.divider()
+    
+    # Interfaz de Compra/Venta
+    col_compra, col_venta = st.columns(2)
+    
+    with col_compra:
+        st.markdown("<h3 style='color: #00ff88;'>🛒 COMPRAR</h3>", unsafe_allow_html=True)
+        cant_compra = st.number_input(f"Cantidad a comprar", min_value=0.0, step=0.1, key="compra")
+        coste = cant_compra * precio_actual
+        st.write(f"Coste de la operación: **{coste:,.2f} €**")
+        
+        if st.button("Ejecutar COMPRA", type="primary", use_container_width=True):
+            if coste > 0 and coste <= st.session_state.cash:
+                st.session_state.cash -= coste
+                st.session_state.cartera[ticker_actual] = {
+                    'cantidad': posicion['cantidad'] + cant_compra,
+                    'invertido': posicion['invertido'] + coste
+                }
+                st.success(f"¡Compra ejecutada con éxito!")
+                st.rerun()
+            elif coste > st.session_state.cash:
+                st.error("Liquidez insuficiente para esta operación.")
+                
+    with col_venta:
+        st.markdown("<h3 style='color: #ff3333;'>💸 VENDER</h3>", unsafe_allow_html=True)
+        cant_venta = st.number_input(f"Cantidad a vender", min_value=0.0, max_value=float(posicion['cantidad']), step=0.1, key="venta")
+        ingreso = cant_venta * precio_actual
+        st.write(f"Ingreso de la operación: **{ingreso:,.2f} €**")
+        
+        if st.button("Ejecutar VENTA", use_container_width=True):
+            if cant_venta > 0 and cant_venta <= posicion['cantidad']:
+                st.session_state.cash += ingreso
+                proporcion_vendida = cant_venta / posicion['cantidad']
+                st.session_state.cartera[ticker_actual] = {
+                    'cantidad': posicion['cantidad'] - cant_venta,
+                    'invertido': posicion['invertido'] - (posicion['invertido'] * proporcion_vendida)
+                }
+                st.success(f"¡Venta ejecutada con éxito!")
+                st.rerun()
+
+# --- BUCLE AUTÓNOMO ---
 if modo_auto:
-    time.sleep(10) # Refresca el precio del activo cada 10 segundos silenciosamente
+    time.sleep(10)
     st.rerun()
