@@ -10,7 +10,8 @@ st.set_page_config(page_title="Departamento de Inversión IA", layout="wide", in
 # --- CONEXIÓN CON EL CEREBRO DE LA IA (GEMINI) ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    modelo = genai.GenerativeModel('gemini-1.5-flash')
+    # AQUI ESTÁ EL CAMBIO: Usamos el modelo universal
+    modelo = genai.GenerativeModel('gemini-pro')
 except Exception as e:
     st.error(f"⚠️ Error al conectar la API: {e}")
 
@@ -44,17 +45,13 @@ st.header("📈 Monitor de Mercado (en Euros €)")
 tickers = ['URA', 'ASML', 'BTC-USD', 'EURUSD=X']
 data = yf.download(tickers, period="5d")['Close'].ffill().iloc[-1]
 
-# Obtenemos el valor de 1 Euro en Dólares
 tipo_cambio = data['EURUSD=X']
-
-# Diccionario con los precios ya convertidos a Euros (Precio Dólar / Tipo de Cambio)
 precios_eur = {
     'URA': data['URA'] / tipo_cambio,
     'ASML': data['ASML'] / tipo_cambio,
     'Bitcoin': data['BTC-USD'] / tipo_cambio
 }
 
-# Diseño en columnas bien alineadas
 cols = st.columns(len(precios_eur))
 for i, (nombre, precio) in enumerate(precios_eur.items()):
     cols[i].metric(nombre, f"{precio:.2f} €")
@@ -77,7 +74,6 @@ if st.button("Generar Informe del Día"):
             respuesta = modelo.generate_content(prompt)
             st.write(respuesta.text)
         except Exception as e:
-            # AQUÍ ESTÁ EL CAMBIO: Ahora nos dirá el error técnico real
             st.error(f"Error exacto de Google: {e}")
 else:
     st.info("👆 Haz clic en el botón de arriba para que la IA analice el mercado de hoy.")
