@@ -1,79 +1,113 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime
 import google.generativeai as genai
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Departamento de Inversión IA", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURACIÓN DEL DASHBOARD ---
+st.set_page_config(page_title="Terminal IA Avanzada", layout="wide", initial_sidebar_state="expanded")
 
-# --- CONEXIÓN CON EL CEREBRO DE LA IA (GEMINI) ---
+# --- 2. CEREBRO IA ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    # AQUI ESTÁ EL CAMBIO: Usamos el modelo universal
     modelo = genai.GenerativeModel('gemini-2.5-flash')
 except Exception as e:
-    st.error(f"⚠️ Error al conectar la API: {e}")
+    st.sidebar.error("⚠️ API Key no conectada.")
 
-# --- ESTILO VISUAL OSCURO ---
+# --- 3. ESTILOS CSS PROFESIONALES ---
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: #ffffff; }
-    .stMetric { background-color: #1e2130; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
+    .main { background-color: #0b0e14; color: #ffffff; }
+    h1, h2, h3 { color: #f0f6fc; }
+    .stMetric { background-color: #161b22; border-left: 5px solid #2ea043; padding: 15px; border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BARRA LATERAL (LOS AGENTES) ---
-st.sidebar.title("🤖 Estado del Equipo")
-agentes = {
-    "El Sabueso": "Macro",
-    "El Contable": "Micro",
-    "El Psicólogo": "Sentimiento",
-    "El Abogado del Diablo": "Riesgo"
+# --- 4. BARRA LATERAL: SELECTOR DE ACTIVOS ---
+st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Jon_Kirsch%27s_Logo.png/120px-Jon_Kirsch%27s_Logo.png", width=50) # Logo genérico
+st.sidebar.title("Centro de Mando")
+st.sidebar.divider()
+
+st.sidebar.subheader("🎯 Seleccionar Activo")
+diccionario_activos = {
+    "Bitcoin (Cripto)": "BTC-USD",
+    "Uranio (ETF)": "URA",
+    "ASML (Semiconductores)": "ASML",
+    "Nvidia (IA)": "NVDA",
+    "Oro (Materias Primas)": "GC=F"
 }
-for nombre, rol in agentes.items():
-    st.sidebar.write(f"**{nombre}** ({rol}): 🟢 Operativo")
+seleccion = st.sidebar.selectbox("¿Qué mercado analizamos hoy?", list(diccionario_activos.keys()))
+ticker_actual = diccionario_activos[seleccion]
 
-# --- CABECERA ---
-st.title("🏛️ Terminal de Inversión IA - Chief Executive")
-st.write(f"Fecha de conexión: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.sidebar.divider()
+st.sidebar.caption("Sistemas Operativos: 🟢 9/9 Agentes Online")
 
-# --- PRECIOS EN TIEMPO REAL (CONVERTIDOS A EUROS) ---
-st.header("📈 Monitor de Mercado (en Euros €)")
+# --- 5. DESCARGA DE DATOS EN TIEMPO REAL ---
+@st.cache_data(ttl=300) # Guarda los datos 5 minutos para que la web vaya ultra rápida
+def obtener_datos(ticker):
+    datos = yf.download(ticker, period="3mo", interval="1d")
+    return datos
 
-# Añadimos EURUSD=X para obtener el tipo de cambio en tiempo real y hacer la conversión
-tickers = ['URA', 'ASML', 'BTC-USD', 'EURUSD=X']
-data = yf.download(tickers, period="5d")['Close'].ffill().iloc[-1]
+df = obtener_datos(ticker_actual)
+precio_actual = df['Close'].iloc[-1].item()
+precio_anterior = df['Close'].iloc[-2].item()
+variacion = ((precio_actual - precio_anterior) / precio_anterior) * 100
 
-tipo_cambio = data['EURUSD=X']
-precios_eur = {
-    'URA': data['URA'] / tipo_cambio,
-    'ASML': data['ASML'] / tipo_cambio,
-    'Bitcoin': data['BTC-USD'] / tipo_cambio
-}
+# --- 6. CABECERA PRINCIPAL ---
+st.title("🏛️ Terminal Analítica de Inversión")
+st.markdown(f"**Análisis de {seleccion}** | Última actualización: {datetime.now().strftime('%H:%M:%S')}")
 
-cols = st.columns(len(precios_eur))
-for i, (nombre, precio) in enumerate(precios_eur.items()):
-    cols[i].metric(nombre, f"{precio:.2f} €")
+# Métricas rápidas
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Precio Actual", f"{precio_actual:.2f} $", f"{variacion:.2f}%")
+col2.metric("Máximo (3 meses)", f"{df['High'].max().item():.2f} $")
+col3.metric("Mínimo (3 meses)", f"{df['Low'].min().item():.2f} $")
+col4.metric("Volumen de hoy", f"{int(df['Volume'].iloc[-1].item()):,}")
 
 st.divider()
 
-# --- EL MOTOR DE INTELIGENCIA ARTIFICIAL ---
-st.header("📋 Informe Diario de los Agentes")
+# --- 7. PESTAÑAS DE NAVEGACIÓN ---
+tab1, tab2, tab3 = st.tabs(["📊 Gráfico Interactivo (El Analista)", "🧠 Reporte de la IA (El Equipo)", "📰 Datos Raw"])
 
-if st.button("Generar Informe del Día"):
-    with st.spinner("Los agentes están redactando el informe en tiempo real..."):
-        prompt = """
-        Actúa como un equipo de expertos financieros para un Chief Executive. Dame un informe rápido del mercado de hoy en 3 puntos. IMPORTANTE: Si hablas de dinero o precios, usa SIEMPRE Euros (€).
-        1. 'El Sabueso' (Macro): Qué está pasando en la economía global hoy.
-        2. 'El Contable' (Micro): Una empresa que deberíamos vigilar hoy y por qué.
-        3. 'El Abogado del Diablo' (Riesgo): Un peligro inminente en el mercado actual.
-        Sé directo, profesional y usa un tono ejecutivo.
-        """
-        try:
-            respuesta = modelo.generate_content(prompt)
-            st.write(respuesta.text)
-        except Exception as e:
-            st.error(f"Error exacto de Google: {e}")
-else:
-    st.info("👆 Haz clic en el botón de arriba para que la IA analice el mercado de hoy.")
+with tab1:
+    st.subheader(f"Acción del Precio: {seleccion}")
+    # Gráfico de Velas Japonesas profesional con Plotly
+    fig = go.Figure(data=[go.Candlestick(x=df.index,
+                    open=df['Open'].squeeze(),
+                    high=df['High'].squeeze(),
+                    low=df['Low'].squeeze(),
+                    close=df['Close'].squeeze(),
+                    increasing_line_color='#2ea043', decreasing_line_color='#f85149')])
+    
+    fig.update_layout(template='plotly_dark', margin=dict(l=0, r=0, t=30, b=0), height=500,
+                      xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+with tab2:
+    st.subheader("Análisis Estratégico Generado por IA")
+    if st.button("🚀 Iniciar Análisis de los Agentes", use_container_width=True):
+        with st.spinner("Conectando con la matriz de agentes..."):
+            prompt = f"""
+            Eres el equipo de analistas de un fondo de inversión. 
+            Actualmente estamos viendo el activo: {seleccion} (Ticker: {ticker_actual}).
+            El precio actual es {precio_actual:.2f} y ha variado un {variacion:.2f}% hoy.
+            
+            Redacta un informe ejecutivo urgente estructurado así:
+            1. 'El Sabueso' (Macro): Contexto actual del sector de este activo.
+            2. 'El Analista Técnico': Breve comentario sobre qué significa esa variación del {variacion:.2f}%.
+            3. 'El Abogado del Diablo' (Riesgo): ¿Cuál es el peor escenario posible si compramos ahora?
+            
+            Sé crudo, directo y usa un tono muy profesional y técnico.
+            """
+            try:
+                respuesta = modelo.generate_content(prompt)
+                st.markdown(respuesta.text)
+            except Exception as e:
+                st.error(f"Fallo de conexión con el satélite Gemini: {e}")
+    else:
+        st.info("El equipo está a la espera de sus órdenes para procesar este activo.")
+
+with tab3:
+    st.subheader("Histórico de Precios (Últimos 10 días)")
+    st.dataframe(df.tail(10).sort_index(ascending=False), use_container_width=True)
