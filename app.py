@@ -2,11 +2,19 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import google.generativeai as genai
 
-# CONFIGURACIÓN DE LA PÁGINA
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Departamento de Inversión IA", layout="wide", initial_sidebar_state="expanded")
 
-# ESTILO DARK MODE PROFESIONAL
+# --- CONEXIÓN CON EL CEREBRO DE LA IA (GEMINI) ---
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    modelo = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    st.error("⚠️ Falta la API Key. Asegúrate de haberla guardado en los Secrets de Streamlit.")
+
+# --- ESTILO VISUAL OSCURO ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
@@ -14,65 +22,48 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR: ESTADO DE LOS 9 AGENTES ---
+# --- BARRA LATERAL (LOS AGENTES) ---
 st.sidebar.title("🤖 Estado del Equipo")
 agentes = {
-    "El Sabueso": "🔍 Escaneando Macro",
-    "El Contable": "📊 Analizando Balances",
-    "El Psicólogo": "🧠 Midiendo Sentimiento",
-    "El Abogado del Diablo": "🚩 Vigilando Riesgos",
-    "El Estratega": "🎯 Coordinando CIO",
-    "El Arquitecto Visual": "🎨 Optimizando UI",
-    "Carla": "💡 Innovando I+D",
-    "El Oráculo": "📡 Señales Invisibles",
-    "El Sombra": "🕵️ Vigilando Insiders"
+    "El Sabueso": "Macro",
+    "El Contable": "Micro",
+    "El Psicólogo": "Sentimiento",
+    "El Abogado del Diablo": "Riesgo"
 }
-for nombre, estado in agentes.items():
-    st.sidebar.write(f"**{nombre}:** {estado}")
+for nombre, rol in agentes.items():
+    st.sidebar.write(f"**{nombre}** ({rol}): 🟢 Operativo")
 
-# --- TÍTULO PRINCIPAL ---
+# --- CABECERA ---
 st.title("🏛️ Terminal de Inversión IA - Chief Executive")
-st.write(f"Fecha actual: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.write(f"Fecha de conexión: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-# --- BLOQUE 1: CARTERA VIRTUAL ---
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Balance Total", "100.000,00 €", "+0.42%")
-with col2:
-    st.metric("Inversión en Uranio (URA)", "15.000,00 €", "En espera")
-with col3:
-    st.metric("Efectivo Disponible", "85.000,00 €")
-with col4:
-    st.metric("Nivel de Riesgo", "Medio-Bajo", "Estable")
-
-# --- BLOQUE 2: DATOS DE MERCADO EN TIEMPO REAL ---
-st.header("📈 Monitor de Activos Bajo Vigilancia")
-tickers = ['URA', 'ASML', 'PANW', 'BTC-USD', 'GC=F'] # Uranio, Chips, Ciberseguridad, Bitcoin, Oro
+# --- PRECIOS EN TIEMPO REAL ---
+st.header("📈 Monitor de Mercado")
+tickers = ['URA', 'ASML', 'BTC-USD']
 data = yf.download(tickers, period="1d")['Close'].iloc[-1]
 
-cols_m = st.columns(len(tickers))
+cols = st.columns(len(tickers))
 for i, ticker in enumerate(tickers):
-    cols_m[i].metric(ticker, f"{data[ticker]:.2f}")
+    cols[i].metric(ticker, f"{data[ticker]:.2f} $")
 
-# --- BLOQUE 3: EL INFORME MAESTRO DE LOS AGENTES ---
 st.divider()
-st.header("📋 Informe de los Agentes (08:00 AM)")
 
-tab1, tab2, tab3 = st.tabs(["🎯 Selección del Día", "🕵️ Power Feed (Insiders)", "🚩 Riesgos"])
+# --- EL MOTOR DE INTELIGENCIA ARTIFICIAL ---
+st.header("📋 Informe Diario de los Agentes")
 
-with tab1:
-    st.subheader("Uranio (ETF: URA)")
-    st.write("**Tesis:** Movimiento coordinado de legisladores en EE.UU. y déficit de suministro global.")
-    st.info("Recomendación: Mantener posición de 15.000€. Precio objetivo: +12%")
-
-with tab2:
-    st.subheader("Actividad de Insiders detectada por 'El Sombra'")
-    st.warning("Detección de compras en el sector de Ciberseguridad por parte de directivos de Palo Alto Networks.")
-
-with tab3:
-    st.subheader("Análisis del Abogado del Diablo")
-    st.error("Alerta: Volatilidad esperada en el mercado asiático por fluctuación del Yen. No abrir nuevas posiciones en Japón.")
-
-# --- FOOTER: TICKER DE NOTICIAS ---
-st.markdown("---")
-st.write("🏃 **Ticker de Última Hora:** [EL SABUESO] Rusia limita exportaciones de gas... [EL ORÁCULO] Satélites detectan atasco en Canal de Suez... [CARLA] Nueva actualización de IA cuántica disponible...")
+if st.button("Generar Informe del Día"):
+    with st.spinner("Los agentes están redactando el informe en tiempo real..."):
+        prompt = """
+        Actúa como un equipo de expertos financieros para un Chief Executive. Dame un informe rápido del mercado de hoy en 3 puntos:
+        1. 'El Sabueso' (Macro): Qué está pasando en la economía global hoy.
+        2. 'El Contable' (Micro): Una empresa que deberíamos vigilar hoy y por qué.
+        3. 'El Abogado del Diablo' (Riesgo): Un peligro inminente en el mercado actual.
+        Sé directo, profesional y usa un tono ejecutivo.
+        """
+        try:
+            respuesta = modelo.generate_content(prompt)
+            st.write(respuesta.text)
+        except Exception as e:
+            st.error("Hubo un error al contactar con la IA. Revisa tu API Key.")
+else:
+    st.info("👆 Haz clic en el botón de arriba para que la IA analice el mercado de hoy.")
