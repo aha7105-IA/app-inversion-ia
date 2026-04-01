@@ -37,17 +37,27 @@ for nombre, rol in agentes.items():
 st.title("🏛️ Terminal de Inversión IA - Chief Executive")
 st.write(f"Fecha de conexión: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-# --- PRECIOS EN TIEMPO REAL ---
-st.header("📈 Monitor de Mercado")
-tickers = ['URA', 'ASML', 'BTC-USD']
+# --- PRECIOS EN TIEMPO REAL (CONVERTIDOS A EUROS) ---
+st.header("📈 Monitor de Mercado (en Euros €)")
 
-# Solución al "nan": miramos 5 días atrás para asegurar que haya precio aunque la bolsa esté cerrada hoy
+# Añadimos EURUSD=X para obtener el tipo de cambio en tiempo real y hacer la conversión
+tickers = ['URA', 'ASML', 'BTC-USD', 'EURUSD=X']
 data = yf.download(tickers, period="5d")['Close'].ffill().iloc[-1]
 
-# Diseño en columnas (para que salgan los 3 recuadros alineados en horizontal)
-cols = st.columns(len(tickers))
-for i, ticker in enumerate(tickers):
-    cols[i].metric(ticker, f"{data[ticker]:.2f} $")
+# Obtenemos el valor de 1 Euro en Dólares
+tipo_cambio = data['EURUSD=X']
+
+# Diccionario con los precios ya convertidos a Euros (Precio Dólar / Tipo de Cambio)
+precios_eur = {
+    'URA': data['URA'] / tipo_cambio,
+    'ASML': data['ASML'] / tipo_cambio,
+    'Bitcoin': data['BTC-USD'] / tipo_cambio
+}
+
+# Diseño en columnas bien alineadas
+cols = st.columns(len(precios_eur))
+for i, (nombre, precio) in enumerate(precios_eur.items()):
+    cols[i].metric(nombre, f"{precio:.2f} €")
 
 st.divider()
 
@@ -57,7 +67,7 @@ st.header("📋 Informe Diario de los Agentes")
 if st.button("Generar Informe del Día"):
     with st.spinner("Los agentes están redactando el informe en tiempo real..."):
         prompt = """
-        Actúa como un equipo de expertos financieros para un Chief Executive. Dame un informe rápido del mercado de hoy en 3 puntos:
+        Actúa como un equipo de expertos financieros para un Chief Executive. Dame un informe rápido del mercado de hoy en 3 puntos. IMPORTANTE: Si hablas de dinero o precios, usa SIEMPRE Euros (€).
         1. 'El Sabueso' (Macro): Qué está pasando en la economía global hoy.
         2. 'El Contable' (Micro): Una empresa que deberíamos vigilar hoy y por qué.
         3. 'El Abogado del Diablo' (Riesgo): Un peligro inminente en el mercado actual.
