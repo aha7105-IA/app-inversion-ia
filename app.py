@@ -12,7 +12,7 @@ try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     modelo = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error("⚠️ Falta la API Key. Asegúrate de haberla guardado en los Secrets de Streamlit.")
+    st.error(f"⚠️ Error al conectar la API: {e}")
 
 # --- ESTILO VISUAL OSCURO ---
 st.markdown("""
@@ -77,6 +77,7 @@ if st.button("Generar Informe del Día"):
             respuesta = modelo.generate_content(prompt)
             st.write(respuesta.text)
         except Exception as e:
-            st.error("Hubo un error al contactar con la IA. Revisa tu API Key en Streamlit.")
+            # AQUÍ ESTÁ EL CAMBIO: Ahora nos dirá el error técnico real
+            st.error(f"Error exacto de Google: {e}")
 else:
     st.info("👆 Haz clic en el botón de arriba para que la IA analice el mercado de hoy.")
