@@ -11,7 +11,7 @@ st.set_page_config(page_title="Departamento de Inversión IA", layout="wide", in
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     # AQUI ESTÁ EL CAMBIO: Usamos el modelo universal
-    modelo = genai.GenerativeModel('gemini-pro')
+    modelo = genai.GenerativeModel('gemini-2.5-flash')
 except Exception as e:
     st.error(f"⚠️ Error al conectar la API: {e}")
 
