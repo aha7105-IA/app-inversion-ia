@@ -40,8 +40,11 @@ st.write(f"Fecha de conexión: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 # --- PRECIOS EN TIEMPO REAL ---
 st.header("📈 Monitor de Mercado")
 tickers = ['URA', 'ASML', 'BTC-USD']
-data = yf.download(tickers, period="1d")['Close'].iloc[-1]
 
+# Solución al "nan": miramos 5 días atrás para asegurar que haya precio aunque la bolsa esté cerrada hoy
+data = yf.download(tickers, period="5d")['Close'].ffill().iloc[-1]
+
+# Diseño en columnas (para que salgan los 3 recuadros alineados en horizontal)
 cols = st.columns(len(tickers))
 for i, ticker in enumerate(tickers):
     cols[i].metric(ticker, f"{data[ticker]:.2f} $")
@@ -64,6 +67,6 @@ if st.button("Generar Informe del Día"):
             respuesta = modelo.generate_content(prompt)
             st.write(respuesta.text)
         except Exception as e:
-            st.error("Hubo un error al contactar con la IA. Revisa tu API Key.")
+            st.error("Hubo un error al contactar con la IA. Revisa tu API Key en Streamlit.")
 else:
     st.info("👆 Haz clic en el botón de arriba para que la IA analice el mercado de hoy.")
